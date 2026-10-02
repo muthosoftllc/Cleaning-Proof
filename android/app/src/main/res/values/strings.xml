@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cleaning Proof</string>
+    <string name="channel_jobs">Jobs</string>
+    <string name="channel_reports">Reports &amp; customers</string>
+    <string name="channel_sync">Sync</string>
+</resources>

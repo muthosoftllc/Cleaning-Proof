@@ -1,0 +1,30 @@
+{% extends "reports/base.html" %}
+{% block title %}Verify {{ number }} — Cleaning Proof{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="label">Report verification</div>
+  <h1>{{ number }}</h1>
+  {% if not v.exists %}
+    <p><span class="badge bad">Not found</span></p>
+    <p class="muted">No Cleaning Proof report exists with this ID. Check the ID or contact the company that sent it.</p>
+  {% else %}
+    <p>{% if v.valid %}<span class="badge ok">Valid report</span>
+       {% elif v.status == "revoked" %}<span class="badge bad">Revoked by the issuer</span>
+       {% else %}<span class="badge warn">Not yet final</span>{% endif %}</p>
+    <div class="grid">
+      <div><div class="label">Company</div>{{ v.company }}</div>
+      <div><div class="label">Property</div>{{ v.property }}{% if v.city %}, {{ v.city }}{% endif %}</div>
+      <div><div class="label">Completed</div><span data-ts="{{ v.completed_at }}">{{ v.completed_at|default:"—" }}</span></div>
+      <div><div class="label">Revision</div>{{ v.revision }}</div>
+    </div>
+    {% if v.content_hash %}<p class="small muted" style="margin-top:14px">Integrity (SHA-256)<br><span class="mono">{{ v.content_hash }}</span></p>
+    <p class="small muted">If this matches the fingerprint printed on your copy, the report has not been altered.</p>{% endif %}
+  {% endif %}
+</div>
+<script>
+  document.querySelectorAll("[data-ts]").forEach(function (el) {
+    var v = el.getAttribute("data-ts"); if (!v || v === "None") return;
+    var d = new Date(v); if (!isNaN(d)) el.textContent = d.toLocaleString([], {dateStyle: "medium", timeStyle: "short"});
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "reports/base.html" %}
+{% block title %}Cleaning Proof {{ report.number }} — {{ s.company.name }}{% endblock %}
+{% block content %}
+{% if submitted == "approved" %}<div class="notice">Thank you — your approval has been recorded.</div>{% endif %}
+{% if submitted == "feedback" %}<div class="notice">Thank you — {{ s.company.name }} has been notified.</div>{% endif %}
+
+<div class="card">
+  <div class="row">
+    {% if logo_url %}<img src="{{ logo_url }}" alt="" style="height:48px;border-radius:8px">{% endif %}
+    <div>
+      <div class="muted small">{{ s.company.name }}</div>
+      <h1>Cleaning completed</h1>
+      <div class="small muted">Report {{ report.number }}{% if report.revision > 1 %} · revision {{ report.revision }}{% endif %}</div>
+    </div>
+  </div>
+  <p style="margin:14px 0 6px">
+    {% if report.status == "final" %}<span class="badge ok">Verified report</span>
+    {% else %}<span class="badge warn">Photos still uploading</span>{% endif %}
+    {% if report.approved_at %}<span class="badge ok">Approved by {{ report.approved_by_name }}</span>{% endif %}
+  </p>
+  <div class="grid" style="margin-top:12px">
+    <div><div class="label">Property</div>{{ s.property.name }}</div>
+    <div><div class="label">Cleaner</div>{{ s.job.cleaner|default:"—" }}</div>
+    <div><div class="label">Started</div><span data-ts="{{ s.job.started_at }}">{{ s.job.started_at|default:"—" }}</span></div>
+    <div><div class="label">Completed</div><span data-ts="{{ s.job.completed_at }}">{{ s.job.completed_at|default:"—" }}</span></div>
+    <div><div class="label">Duration</div>{% if s.job.duration_minutes != None %}{{ s.job.duration_minutes }} min{% else %}—{% endif %}</div>
+    <div><div class="label">Tasks</div>{{ s.summary.tasks_done }} / {{ s.summary.tasks_total }} done</div>
+  </div>
+  {% if pdf_available %}<p style="margin-top:14px"><a class="btn secondary" href="pdf/">Download PDF</a></p>{% endif %}
+</div>
+
+{% if photo_groups.before or photo_groups.after %}
+<div class="card">
+  <h2>Before &amp; after</h2>
+  {% if photo_groups.before %}<div class="label">Before</div>
+  <div class="photos" style="margin-bottom:12px">{% for p in photo_groups.before %}
+    <figure><a href="{{ p.thumb_url }}"><img loading="lazy" src="{{ p.thumb_url }}" alt="Before photo {{ p.room }}"></a>
+    <figcaption>{{ p.room }} <span data-ts="{{ p.captured_at }}"></span></figcaption></figure>{% endfor %}</div>{% endif %}
+  {% if photo_groups.after %}<div class="label">After</div>
+  <div class="photos">{% for p in photo_groups.after %}
+    <figure><a href="{{ p.thumb_url }}"><img loading="lazy" src="{{ p.thumb_url }}" alt="After photo {{ p.room }}"></a>
+    <figcaption>{{ p.room }} <span data-ts="{{ p.captured_at }}"></span></figcaption></figure>{% endfor %}</div>{% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Checklist</h2>
+  {% for section in s.checklist %}
+    <div class="label" style="margin-top:8px">{{ section.section }}</div>
+    <ul class="tasks">{% for t in section.tasks %}
+      <li><span class="mark {{ t.status }}">{% if t.status == "done" %}✓{% elif t.status == "skipped" %}–{% else %}✗{% endif %}</span>
+      <span>{{ t.title }}{% if not t.required %} <span class="muted small">(optional)</span>{% endif %}
+      {% if t.note %}<br><span class="muted small">{{ t.note }}</span>{% endif %}</span></li>{% endfor %}
+    </ul>
+  {% empty %}<p class="muted">No checklist was used for this job.</p>{% endfor %}
+  {% if photo_groups.other %}<div class="label" style="margin-top:12px">Task photos</div>
+  <div class="photos">{% for p in photo_groups.other %}
+    <figure><a href="{{ p.thumb_url }}"><img loading="lazy" src="{{ p.thumb_url }}" alt="Photo {{ p.room }}"></a>
+    <figcaption>{{ p.room }}{% if p.caption %} · {{ p.caption }}{% endif %}</figcaption></figure>{% endfor %}</div>{% endif %}
+</div>
+
+{% if s.issues %}
+<div class="card">
+  <h2>Issues &amp; existing damage</h2>
+  {% for i in s.issues %}
+  <div class="issue">
+    <strong>{{ i.room|default:"General" }}</strong> · <span class="badge {% if i.severity == 'high' %}bad{% else %}warn{% endif %}">{{ i.severity|title }}</span>
+    <div>{{ i.description }}</div>
+    <div class="small muted">{{ i.phase }} · {{ i.resolution }}</div>
+    {% if i.photos %}<div class="photos" style="margin-top:6px">{% for p in i.photos %}
+      <figure><a href="{{ p.thumb_url }}"><img loading="lazy" src="{{ p.thumb_url }}" alt="Issue photo"></a></figure>{% endfor %}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if s.job.notes %}<div class="card"><h2>Notes from the cleaner</h2><p style="white-space:pre-line;margin:0">{{ s.job.notes }}</p></div>{% endif %}
+
+<div class="card">
+  <h2>Your sign-off</h2>
+  {% if report.approved_at %}
+    <p>Approved by <strong>{{ report.approved_by_name }}</strong> on <span data-ts="{{ report.approved_at.isoformat }}">{{ report.approved_at }}</span>.</p>
+  {% else %}
+    <form method="post" action="approve/" id="approve-form">{% csrf_token %}
+      <label class="label" for="name">Your name</label>
+      <input id="name" name="name" required maxlength="150" autocomplete="name">
+      <div class="label" style="margin-top:10px">Signature (optional)</div>
+      <canvas id="sig"></canvas>
+      <input type="hidden" name="signature" id="sig-data">
+      <div class="row" style="margin-top:10px"><button type="submit">Approve cleaning</button>
+      <button type="button" class="btn secondary" id="sig-clear">Clear</button></div>
+    </form>
+  {% endif %}
+  <details style="margin-top:14px"><summary>Report a problem</summary>
+    <form method="post" action="feedback/" style="margin-top:8px">{% csrf_token %}
+      <input name="name" placeholder="Your name (optional)" maxlength="150" style="margin-bottom:8px">
+      <textarea name="message" rows="4" required maxlength="2000" placeholder="What needs attention?"></textarea>
+      <button type="submit" style="margin-top:8px">Send to {{ s.company.name }}</button>
+    </form>
+  </details>
+</div>
+
+<div class="card small">
+  <h2>Verification</h2>
+  <div>Verify at <a href="{{ report.verify_url }}">{{ report.verify_url }}</a></div>
+  {% if report.content_hash %}<div class="muted">Integrity (SHA-256): <span class="mono">{{ report.content_hash }}</span></div>{% endif %}
+  {% if s.missing_photo_ids %}<div style="color:var(--warn)">{{ s.missing_photo_ids|length }} photo(s) captured on site were not uploaded.</div>{% endif %}
+  <div class="muted">Contact: {{ s.company.name }}{% if s.company.contact_phone %} · {{ s.company.contact_phone }}{% endif %}{% if s.company.contact_email %} · {{ s.company.contact_email }}{% endif %}</div>
+</div>
+
+<script>
+  document.querySelectorAll("[data-ts]").forEach(function (el) {
+    var v = el.getAttribute("data-ts"); if (!v || v === "None") return;
+    var d = new Date(v); if (!isNaN(d)) el.textContent = d.toLocaleString([], {dateStyle: "medium", timeStyle: "short"});
+  });
+  (function () {
+    var c = document.getElementById("sig"); if (!c) return;
+    var ctx = c.getContext("2d"), drawing = false, dirty = false;
+    function size() { var r = c.getBoundingClientRect(); c.width = r.width; c.height = r.height; ctx.lineWidth = 2; ctx.lineCap = "round"; }
+    size(); window.addEventListener("resize", size);
+    function pos(e) { var r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+    c.addEventListener("pointerdown", function (e) { drawing = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p[0], p[1]); });
+    c.addEventListener("pointermove", function (e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); dirty = true; });
+    ["pointerup", "pointerleave"].forEach(function (t) { c.addEventListener(t, function () { drawing = false; }); });
+    document.getElementById("sig-clear").onclick = function () { ctx.clearRect(0, 0, c.width, c.height); dirty = false; };
+    document.getElementById("approve-form").addEventListener("submit", function () {
+      if (dirty) document.getElementById("sig-data").value = c.toDataURL("image/png");
+    });
+  })();
+</script>
+{% endblock %}
