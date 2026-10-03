@@ -1,16 +1,11 @@
+from apps.core.http import client_ip
+
 from .models import AuditEvent
 
 
-def _client_ip(request):
-    if request is None:
-        return None
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded:
-        return forwarded.split(",")[0].strip() or None
-    return request.META.get("REMOTE_ADDR")
-
-
 def record_event(request, action, target=None, organization=None, **metadata):
+    """Append an audit entry. ``metadata`` must never contain secrets or PII
+    beyond what the action inherently concerns."""
     user = getattr(request, "user", None)
     return AuditEvent.objects.create(
         organization=organization,
@@ -19,5 +14,5 @@ def record_event(request, action, target=None, organization=None, **metadata):
         target_type=type(target).__name__ if target is not None else "",
         target_id=str(getattr(target, "pk", "")) if target is not None else "",
         metadata=metadata,
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request) if request is not None else None,
     )

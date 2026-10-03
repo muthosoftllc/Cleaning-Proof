@@ -28,15 +28,15 @@ class BillingStatusView(APIView):
         org = resolve_membership(request).organization
         data = Entitlements.for_org(org).as_dict()
         data["products"] = [
-            {"product_id": pid, "plan": code, "plan_name": PLANS[code].name}
-            for pid, code in PRODUCT_PLANS.items()
+            {"product_id": pid, "plan": code, "plan_name": PLANS[code].name} for pid, code in PRODUCT_PLANS.items()
         ]
         return Response(data)
 
 
 class VerifyPurchaseSerializer(serializers.Serializer):
-    product_id = serializers.CharField(max_length=100)
-    purchase_token = serializers.CharField(max_length=512)
+    product_id = serializers.ChoiceField(choices=sorted(PRODUCT_PLANS))
+    # Play tokens are opaque but URL-safe; anything else is rejected up front.
+    purchase_token = serializers.RegexField(r"^[A-Za-z0-9._:\-]{8,512}$")
 
 
 class GooglePlayVerifyView(APIView):
@@ -50,20 +50,52 @@ class GooglePlayVerifyView(APIView):
         serializer.is_valid(raise_exception=True)
         org = resolve_membership(request).organization
         subscription = sync_purchase(
-            serializer.validated_data["purchase_token"], organization=org, user=request.user,
+            serializer.validated_data["purchase_token"],
+            organization=org,
+            user=request.user,
             expected_product=serializer.validated_data["product_id"],
         )
-        record_event(request, "billing.purchase_verified", subscription, organization=org,
-                     plan=subscription.plan, status=subscription.status)
+        record_event(
+            request,
+            "billing.purchase_verified",
+            subscription,
+            organization=org,
+            plan=subscription.plan,
+            status=subscription.status,
+        )
         return Response(Entitlements.for_org(org).as_dict())
+
+
+def _rtdn_authenticated(request) -> bool:
+    """Authenticate a Pub/Sub push.
+
+    Preferred: the OIDC token Pub/Sub attaches when the push subscription has
+    authentication enabled (signed by Google, audience + service account
+    checked). Fallback: a shared secret in the push URL.
+    """
+    audience = settings.GOOGLE_PLAY_RTDN_AUDIENCE
+    if audience:
+        header = request.headers.get("Authorization", "")
+        if not header.startswith("Bearer "):
+            return False
+        try:
+            from google.auth.transport import requests as google_requests
+            from google.oauth2 import id_token
+
+            claims = id_token.verify_oauth2_token(header[7:], google_requests.Request(), audience=audience)
+        except ValueError:
+            return False
+        expected = settings.GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT
+        return bool(claims.get("email_verified")) and (not expected or claims.get("email") == expected)
+    secret = settings.GOOGLE_PLAY_RTDN_TOKEN
+    return bool(secret) and constant_time_compare(request.query_params.get("token", ""), secret)
 
 
 class GooglePlayRTDNView(APIView):
     """Real-time developer notifications via a Cloud Pub/Sub push subscription.
 
-    Configure the push endpoint as ``/api/v1/billing/google-play/rtdn/?token=<GOOGLE_PLAY_RTDN_TOKEN>``.
-    The notification itself is not trusted: we only use it as a hint to
-    re-verify the token with Google.
+    The notification itself is never trusted: it is only a hint to re-verify
+    the purchase token with Google.
     """
 
     permission_classes = [AllowAny]
@@ -71,14 +103,13 @@ class GooglePlayRTDNView(APIView):
     throttle_classes: list = []
 
     def post(self, request):
-        expected = settings.GOOGLE_PLAY_RTDN_TOKEN
-        if not expected or not constant_time_compare(request.query_params.get("token", ""), expected):
+        if not _rtdn_authenticated(request):
             return Response(status=status.HTTP_403_FORBIDDEN)
         try:
             payload = json.loads(base64.b64decode(request.data["message"]["data"]))
         except (KeyError, TypeError, ValueError, binascii.Error):
             return Response(status=status.HTTP_204_NO_CONTENT)  # ack malformed messages
-        notification = payload.get("subscriptionNotification")
+        notification = payload.get("subscriptionNotification") if isinstance(payload, dict) else None
         if notification and notification.get("purchaseToken"):
             try:
                 sync_purchase(notification["purchaseToken"])

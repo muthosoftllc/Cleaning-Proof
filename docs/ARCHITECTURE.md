@@ -16,13 +16,13 @@
 
 | App | Responsibility |
 |-----|----------------|
-| `core` | UUID base models, org-scoped viewset, role permission, signed file URLs, rate limiter |
+| `core` | UUID base models, org-scoped viewset, role permission, signed file URLs, rate limiter, trusted client IP, security headers, background tasks |
 | `accounts` | Email-based `User`, register/login/refresh (JWT), account deletion (anonymize) |
 | `organizations` | `Organization`, `Membership` (roles), `Invitation`, append-only `AuditEvent` |
 | `properties` | `Customer`, `Property` (address, instructions, private access notes, default checklist, assigned cleaners) |
 | `checklists` | `ChecklistTemplate` → `ChecklistSection` → `ChecklistTask`; duplicate; starter templates |
 | `jobs` | `Job`, `JobTask` (snapshot), `Photo`, `Issue`, `Signature`, `RecurringSchedule`, sync protocol, dashboard |
-| `reports` | `Report` (number, share token, frozen snapshot, SHA-256, PDF), customer approval/feedback, verification |
+| `reports` | `Report` (number, share token, frozen snapshot, SHA-256, PDF), customer approval/feedback, verification. `api.py` serves staff; `public.py` serves anonymous customers |
 | `notifications` | `Notification` inbox + `Device` tokens, FCM HTTP v1 sender |
 | `billing` | Plan catalogue, server-side `Entitlements`, `Subscription`, Google Play verification + RTDN |
 
@@ -34,7 +34,9 @@
 - **Evidence is append-only.** There is no photo delete endpoint. Issues are updated, never deleted, by sync.
 - **Reports are frozen and hashed.** When a report becomes final, `snapshot` holds everything it shows, including each photo's SHA-256, and `content_hash` is the SHA-256 of the canonical JSON. A late photo produces a visible new *revision* instead of silently changing the report.
 - **Server-authoritative plans.** `Entitlements.for_org()` is the only place limits are decided. The app only displays what `/billing/` returns.
-- **No Celery yet.** Side effects (push, PDF) run in `transaction.on_commit`, and scheduled work runs as management commands (`generate_recurring_jobs`, `send_job_reminders`) from the `scheduler` service. Both are isolated in service functions, so moving to Celery later is a small change.
+- **Thin views, fat services.** Views parse input and map errors to HTTP; rules live in services (`jobs/services.py`, `jobs/sync.py`, `reports/services.py`) where they're testable without HTTP.
+- **No Celery yet.** Slow side effects (push, PDF) go through `apps.core.tasks.run_after_commit`: a small per-process thread pool that runs after the transaction commits (inline in tests). It's the single seam to replace with a queue. Scheduled work runs as management commands (`generate_recurring_jobs`, `send_job_reminders`) from the `scheduler` service.
+- **PostgreSQL is the reference database.** CI runs the suite on Postgres; SQLite is for quick local runs only.
 
 ### Data model (simplified)
 

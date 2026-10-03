@@ -1,10 +1,10 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="referrer" content="no-referrer">
+  <meta name="referrer" content="same-origin">  {# no-referrer makes browsers send Origin: null, failing CSRF on the forms #}
   <title>{% block title %}Cleaning Proof{% endblock %}</title>
   <style>
     :root { --brand: {{ brand|default:"#0F766E" }}; --ink: #1f2933; --muted: #616e7c; --line: #e4e7eb;
@@ -43,5 +43,7 @@
 </head>
 <body><div class="wrap">{% block content %}{% endblock %}
 <footer>Powered by <a href="https://cleaningproof.app" rel="noopener">Cleaning Proof</a></footer>
-</div></body>
+</div>
+<script src="{% static 'reports/report.js' %}" defer></script>
+</body>
 </html>

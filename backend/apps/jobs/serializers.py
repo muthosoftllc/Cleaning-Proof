@@ -8,7 +8,16 @@ from apps.properties.models import Property
 from apps.properties.serializers import OrgMemberField
 
 from .models import (
-    Frequency, Issue, Job, JobStatus, JobTask, Photo, PhotoKind, RecurringSchedule, Signature, TaskStatus,
+    Frequency,
+    Issue,
+    Job,
+    JobStatus,
+    JobTask,
+    Photo,
+    PhotoKind,
+    RecurringSchedule,
+    Signature,
+    TaskStatus,
 )
 from .services import create_job, notify_assignment, snapshot_checklist
 
@@ -17,8 +26,18 @@ class JobTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobTask
         fields = [
-            "id", "section_name", "section_position", "title", "instructions", "is_required",
-            "requires_photo", "position", "status", "note", "completed_at", "client_updated_at",
+            "id",
+            "section_name",
+            "section_position",
+            "title",
+            "instructions",
+            "is_required",
+            "requires_photo",
+            "position",
+            "status",
+            "note",
+            "completed_at",
+            "client_updated_at",
         ]
         read_only_fields = fields
 
@@ -30,9 +49,23 @@ class PhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Photo
         fields = [
-            "id", "job", "kind", "job_task", "issue", "room", "caption", "captured_at",
-            "latitude", "longitude", "sha256", "width", "height", "size_bytes",
-            "url", "thumbnail_url", "created_at",
+            "id",
+            "job",
+            "kind",
+            "job_task",
+            "issue",
+            "room",
+            "caption",
+            "captured_at",
+            "latitude",
+            "longitude",
+            "sha256",
+            "width",
+            "height",
+            "size_bytes",
+            "url",
+            "thumbnail_url",
+            "created_at",
         ]
         read_only_fields = fields
 
@@ -49,7 +82,9 @@ class PhotoUploadSerializer(serializers.Serializer):
 
     id = serializers.UUIDField()
     job = serializers.UUIDField()
-    file = serializers.ImageField()
+    # Plain FileField: the service decodes the image exactly once (format
+    # allowlist, size and bomb checks) instead of DRF verifying it again.
+    file = serializers.FileField()
     kind = serializers.ChoiceField(choices=PhotoKind.choices, default=PhotoKind.OTHER)
     job_task = serializers.UUIDField(required=False, allow_null=True)
     issue = serializers.UUIDField(required=False, allow_null=True)
@@ -58,7 +93,7 @@ class PhotoUploadSerializer(serializers.Serializer):
     captured_at = serializers.DateTimeField()
     latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-    sha256 = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    sha256 = serializers.RegexField(r"^[0-9a-fA-F]{64}$", required=False, allow_blank=True)
 
 
 class IssueSerializer(serializers.ModelSerializer):
@@ -67,8 +102,16 @@ class IssueSerializer(serializers.ModelSerializer):
     class Meta:
         model = Issue
         fields = [
-            "id", "job", "room", "description", "severity", "phase", "resolution",
-            "reported_at", "photo_ids", "client_updated_at",
+            "id",
+            "job",
+            "room",
+            "description",
+            "severity",
+            "phase",
+            "resolution",
+            "reported_at",
+            "photo_ids",
+            "client_updated_at",
         ]
         read_only_fields = fields
 
@@ -86,8 +129,18 @@ class PropertyBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = Property
         fields = [
-            "id", "name", "address_line1", "address_line2", "city", "region", "postal_code",
-            "country", "latitude", "longitude", "cleaning_instructions", "access_notes",
+            "id",
+            "name",
+            "address_line1",
+            "address_line2",
+            "city",
+            "region",
+            "postal_code",
+            "country",
+            "latitude",
+            "longitude",
+            "cleaning_instructions",
+            "access_notes",
         ]
 
 
@@ -105,9 +158,19 @@ class JobSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = [
-            "id", "title", "property", "property_name", "assigned_to_detail", "status",
-            "scheduled_start", "scheduled_end", "started_at", "completed_at", "duration_minutes",
-            "report_number", "updated_at",
+            "id",
+            "title",
+            "property",
+            "property_name",
+            "assigned_to_detail",
+            "status",
+            "scheduled_start",
+            "scheduled_end",
+            "started_at",
+            "completed_at",
+            "duration_minutes",
+            "report_number",
+            "updated_at",
         ]
 
     def get_report_number(self, job):
@@ -117,9 +180,7 @@ class JobSummarySerializer(serializers.ModelSerializer):
 
 class JobSerializer(serializers.ModelSerializer):
     property = OrgRelatedField(queryset=Property.objects.all())
-    checklist_template = OrgRelatedField(
-        queryset=ChecklistTemplate.objects.all(), required=False, allow_null=True
-    )
+    checklist_template = OrgRelatedField(queryset=ChecklistTemplate.objects.all(), required=False, allow_null=True)
     assigned_to = OrgMemberField(required=False, allow_null=True)
     property_detail = PropertyBriefSerializer(source="property", read_only=True)
     assigned_to_detail = AssigneeSerializer(source="assigned_to", read_only=True, allow_null=True)
@@ -134,16 +195,48 @@ class JobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = [
-            "id", "title", "property", "property_detail", "assigned_to", "assigned_to_detail",
-            "checklist_template", "recurring_schedule", "scheduled_start", "scheduled_end",
-            "status", "instructions", "notes", "supply_notes", "started_at", "completed_at",
-            "start_latitude", "start_longitude", "end_latitude", "end_longitude",
-            "cancelled_reason", "tasks", "issues", "photos", "signatures", "progress", "report",
-            "missing_photo_ids", "created_at", "updated_at",
+            "id",
+            "title",
+            "property",
+            "property_detail",
+            "assigned_to",
+            "assigned_to_detail",
+            "checklist_template",
+            "recurring_schedule",
+            "scheduled_start",
+            "scheduled_end",
+            "status",
+            "instructions",
+            "notes",
+            "supply_notes",
+            "started_at",
+            "completed_at",
+            "start_latitude",
+            "start_longitude",
+            "end_latitude",
+            "end_longitude",
+            "cancelled_reason",
+            "tasks",
+            "issues",
+            "photos",
+            "signatures",
+            "progress",
+            "report",
+            "missing_photo_ids",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = [
-            "status", "notes", "supply_notes", "started_at", "completed_at", "start_latitude",
-            "start_longitude", "end_latitude", "end_longitude", "cancelled_reason",
+            "status",
+            "notes",
+            "supply_notes",
+            "started_at",
+            "completed_at",
+            "start_latitude",
+            "start_longitude",
+            "end_latitude",
+            "end_longitude",
+            "cancelled_reason",
             "recurring_schedule",
         ]
 
@@ -191,17 +284,28 @@ class JobSerializer(serializers.ModelSerializer):
 
 class RecurringScheduleSerializer(serializers.ModelSerializer):
     property = OrgRelatedField(queryset=Property.objects.all())
-    checklist_template = OrgRelatedField(
-        queryset=ChecklistTemplate.objects.all(), required=False, allow_null=True
-    )
+    checklist_template = OrgRelatedField(queryset=ChecklistTemplate.objects.all(), required=False, allow_null=True)
     assigned_to = OrgMemberField(required=False, allow_null=True)
 
     class Meta:
         model = RecurringSchedule
         fields = [
-            "id", "property", "assigned_to", "checklist_template", "title", "frequency",
-            "interval_days", "weekdays", "day_of_month", "start_time", "duration_minutes",
-            "timezone", "start_date", "end_date", "is_active", "created_at",
+            "id",
+            "property",
+            "assigned_to",
+            "checklist_template",
+            "title",
+            "frequency",
+            "interval_days",
+            "weekdays",
+            "day_of_month",
+            "start_time",
+            "duration_minutes",
+            "timezone",
+            "start_date",
+            "end_date",
+            "is_active",
+            "created_at",
         ]
         read_only_fields = ["id", "created_at"]
 
@@ -209,15 +313,6 @@ class RecurringScheduleSerializer(serializers.ModelSerializer):
         if not isinstance(value, list) or any(not isinstance(d, int) or not 0 <= d <= 6 for d in value):
             raise serializers.ValidationError("Use a list of integers 0 (Mon) to 6 (Sun).")
         return sorted(set(value))
-
-    def validate_timezone(self, value):
-        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
-        try:
-            ZoneInfo(value)
-        except (ZoneInfoNotFoundError, ValueError):
-            raise serializers.ValidationError("Unknown timezone.")
-        return value
 
     def validate(self, attrs):
         freq = attrs.get("frequency", getattr(self.instance, "frequency", None))
@@ -232,8 +327,16 @@ class CancelJobSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
 
+MAX_SIGNATURE_BYTES = 300_000
+
+
 class OnSiteSignatureSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     signer_name = serializers.CharField(max_length=150)
     image = serializers.ImageField()
     signed_at = serializers.DateTimeField()
+
+    def validate_image(self, image):
+        if image.size > MAX_SIGNATURE_BYTES:
+            raise serializers.ValidationError("Signature image is too large.")
+        return image

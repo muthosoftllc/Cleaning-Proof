@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cleaningproof.data.repo.AuthRepository
+import app.cleaningproof.data.repo.UnsyncedWorkOnDevice
 import app.cleaningproof.ui.containerViewModel
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -53,6 +54,7 @@ class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
             }.onSuccess { onSuccess() }
                 .onFailure {
                     error = when {
+                        it is UnsyncedWorkOnDevice -> it.message
                         it is HttpException && it.code() == 401 -> "Wrong email or password."
                         it is HttpException && it.code() == 400 -> "Please check the details and try again."
                         it is HttpException && it.code() == 429 -> "Too many attempts. Try again in a minute."

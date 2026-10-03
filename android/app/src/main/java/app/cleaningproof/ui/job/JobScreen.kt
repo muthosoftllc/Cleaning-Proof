@@ -69,6 +69,7 @@ import app.cleaningproof.data.local.PhotoEntity
 import app.cleaningproof.data.local.PhotoKind
 import app.cleaningproof.data.local.TaskEntity
 import app.cleaningproof.data.local.TaskStatus
+import app.cleaningproof.data.local.UploadState
 import app.cleaningproof.ui.CameraArgs
 import app.cleaningproof.ui.containerViewModel
 import app.cleaningproof.ui.jobs.StatusLabel
@@ -439,7 +440,7 @@ private fun PhotoThumb(photo: PhotoEntity) {
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(72.dp).clip(RoundedCornerShape(8.dp))
         )
-        if (photo.uploadState == "pending") {
+        if (photo.uploadState == UploadState.PENDING) {
             Icon(
                 Icons.Filled.CloudUpload,
                 "Waiting to upload",

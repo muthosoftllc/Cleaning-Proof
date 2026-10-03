@@ -1,10 +1,9 @@
 from django.db.models import Q
 from rest_framework.decorators import action
-from rest_framework.response import Response
 
 from apps.billing.entitlements import Entitlements
 from apps.core.viewsets import OrgScopedViewSet
-from apps.organizations.models import Role
+from apps.organizations.models import READER_ROLES
 
 from .models import Customer, Property
 from .serializers import CustomerSerializer, PropertySerializer
@@ -13,7 +12,7 @@ from .serializers import CustomerSerializer, PropertySerializer
 class CustomerViewSet(OrgScopedViewSet):
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
-    read_roles = Role.MANAGERS | {Role.VIEWER}
+    read_roles = READER_ROLES
     audit_prefix = "customer"
 
 

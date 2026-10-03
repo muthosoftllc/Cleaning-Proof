@@ -6,6 +6,10 @@ from apps.properties.models import Property
 
 from .models import ChecklistSection, ChecklistTask, ChecklistTemplate
 
+# Generous for real checklists, bounded against abuse (one request = one bulk write).
+MAX_SECTIONS = 50
+MAX_TASKS_PER_SECTION = 100
+
 
 class ChecklistTaskSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(required=False)
@@ -17,7 +21,7 @@ class ChecklistTaskSerializer(serializers.ModelSerializer):
 
 class ChecklistSectionSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(required=False)
-    tasks = ChecklistTaskSerializer(many=True, required=False)
+    tasks = ChecklistTaskSerializer(many=True, required=False, max_length=MAX_TASKS_PER_SECTION)
 
     class Meta:
         model = ChecklistSection
@@ -32,7 +36,7 @@ class ChecklistTemplateSerializer(serializers.ModelSerializer):
     snapshot their tasks at creation time.
     """
 
-    sections = ChecklistSectionSerializer(many=True, required=False)
+    sections = ChecklistSectionSerializer(many=True, required=False, max_length=MAX_SECTIONS)
     property = OrgRelatedField(queryset=Property.objects.all(), allow_null=True, required=False)
 
     class Meta:

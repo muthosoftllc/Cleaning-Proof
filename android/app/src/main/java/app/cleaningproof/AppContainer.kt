@@ -18,8 +18,8 @@ class AppContainer(context: Context) {
     val api = buildApi(session)
     val syncScheduler = SyncScheduler(context)
     val jobs = JobRepository(db, syncScheduler)
-    val auth = AuthRepository(api, session)
     val evidence = EvidenceStore(context)
+    val auth = AuthRepository(api, session, jobs, evidence)
     val location = LocationProvider(context)
     val billing by lazy { BillingManager(context, api, session) }
 }

@@ -21,10 +21,5 @@
     <p class="small muted">If this matches the fingerprint printed on your copy, the report has not been altered.</p>{% endif %}
   {% endif %}
 </div>
-<script>
-  document.querySelectorAll("[data-ts]").forEach(function (el) {
-    var v = el.getAttribute("data-ts"); if (!v || v === "None") return;
-    var d = new Date(v); if (!isNaN(d)) el.textContent = d.toLocaleString([], {dateStyle: "medium", timeStyle: "short"});
-  });
-</script>
+
 {% endblock %}

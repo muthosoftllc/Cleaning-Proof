@@ -4,10 +4,12 @@ import logging
 
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Prefetch
 from django.utils import timezone
 
 from apps.billing.entitlements import Entitlements
-from apps.jobs.models import Job, JobStatus, TaskStatus
+from apps.core.tasks import run_after_commit
+from apps.jobs.models import Job, JobStatus, Photo, TaskStatus
 from apps.notifications.services import NotificationKind, notify_managers
 
 from .models import Report, ReportStatus
@@ -25,15 +27,17 @@ def build_snapshot(job: Job, report: Report) -> dict:
     org = job.organization
     prop = job.property
     sections: dict[str, list] = {}
-    for task in job.tasks.all().order_by("section_position", "position"):
-        sections.setdefault(task.section_name, []).append({
-            "id": str(task.id),
-            "title": task.title,
-            "status": task.status,
-            "required": task.is_required,
-            "note": task.note,
-            "completed_at": _iso(task.completed_at),
-        })
+    for task in job.tasks.all():  # model ordering: section, position
+        sections.setdefault(task.section_name, []).append(
+            {
+                "id": str(task.id),
+                "title": task.title,
+                "status": task.status,
+                "required": task.is_required,
+                "note": task.note,
+                "completed_at": _iso(task.completed_at),
+            }
+        )
     photos = [
         {
             "id": str(p.id),
@@ -46,7 +50,7 @@ def build_snapshot(job: Job, report: Report) -> dict:
             "sha256": p.sha256,
             "has_location": p.latitude is not None,
         }
-        for p in job.photos.select_related("job_task").order_by("captured_at")
+        for p in job.photos.all()  # prefetched with job_task, ordered by capture time
     ]
     issues = [
         {
@@ -58,7 +62,7 @@ def build_snapshot(job: Job, report: Report) -> dict:
             "resolution": i.get_resolution_display(),
             "reported_at": _iso(i.reported_at),
         }
-        for i in job.issues.all().order_by("reported_at")
+        for i in job.issues.all()
     ]
     tasks_flat = [t for ts in sections.values() for t in ts]
     return {
@@ -81,8 +85,9 @@ def build_snapshot(job: Job, report: Report) -> dict:
             "started_at": _iso(job.started_at),
             "completed_at": _iso(job.completed_at),
             "duration_minutes": job.duration_minutes,
-            "cleaner": job.completed_by.display_name if job.completed_by else (
-                job.assigned_to.display_name if job.assigned_to else ""),
+            "cleaner": job.completed_by.display_name
+            if job.completed_by
+            else (job.assigned_to.display_name if job.assigned_to else ""),
             "location_verified": job.start_latitude is not None or job.end_latitude is not None,
             "notes": job.notes,
         },
@@ -120,9 +125,19 @@ def finalize_report_if_ready(job: Job, force: bool = False) -> Report | None:
     anyway (e.g. a lost device), and the report states which photos never
     arrived.
     """
-    job = Job.objects.select_for_update().select_related(
-        "organization", "property__customer", "completed_by", "assigned_to"
-    ).get(pk=job.pk)
+    # Lock only the job row: PostgreSQL refuses FOR UPDATE across the nullable
+    # outer joins that select_related produces (customer, completed_by, ...).
+    job = (
+        Job.objects.select_for_update(of=("self",))
+        .select_related("organization", "property__customer", "completed_by", "assigned_to")
+        .prefetch_related(
+            "tasks",
+            "issues",
+            "signatures",
+            Prefetch("photos", queryset=Photo.objects.select_related("job_task")),
+        )
+        .get(pk=job.pk)
+    )
     if job.status != JobStatus.COMPLETED:
         return None
     report, created = Report.objects.get_or_create(job=job, defaults={"organization": job.organization})
@@ -134,8 +149,9 @@ def finalize_report_if_ready(job: Job, force: bool = False) -> Report | None:
     if was_final:
         # Evidence arriving after finalization produces a new, visible revision.
         new_snapshot = build_snapshot(job, report)
-        if new_snapshot["photos"] == report.snapshot.get("photos") and \
-                new_snapshot["signatures"] == report.snapshot.get("signatures"):
+        if new_snapshot["photos"] == report.snapshot.get("photos") and new_snapshot[
+            "signatures"
+        ] == report.snapshot.get("signatures"):
             return report
         report.revision += 1
 
@@ -149,10 +165,11 @@ def finalize_report_if_ready(job: Job, force: bool = False) -> Report | None:
 
     if ready:
         if Entitlements.for_org(job.organization).has("pdf_reports"):
-            transaction.on_commit(lambda: generate_pdf(report.pk))
+            run_after_commit(generate_pdf, report.pk)
         if not was_final:
             notify_managers(
-                job.organization, NotificationKind.REPORT_GENERATED,
+                job.organization,
+                NotificationKind.REPORT_GENERATED,
                 title="Cleaning report ready",
                 body=f"{report.number} — {job.display_title}",
                 data={"job_id": str(job.id), "report_id": str(report.id)},

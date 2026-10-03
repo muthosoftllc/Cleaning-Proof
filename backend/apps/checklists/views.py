@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.core.http import uuid_param
 from apps.core.viewsets import OrgScopedViewSet
 
 from .defaults import create_default_templates
@@ -19,8 +20,7 @@ class ChecklistTemplateViewSet(OrgScopedViewSet):
         qs = super().get_queryset()
         if self.request.query_params.get("include_archived") != "true":
             qs = qs.filter(is_archived=False)
-        property_id = self.request.query_params.get("property")
-        if property_id:
+        if property_id := uuid_param(self.request, "property"):
             # Generic templates plus the ones specific to this property.
             qs = qs.filter(Q(property__isnull=True) | Q(property_id=property_id))
         return qs

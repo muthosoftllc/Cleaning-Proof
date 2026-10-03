@@ -12,7 +12,10 @@ class ChecklistTemplate(OrgScopedModel):
     name = models.CharField(max_length=150)
     description = models.TextField(blank=True)
     property = models.ForeignKey(
-        "properties.Property", on_delete=models.CASCADE, null=True, blank=True,
+        "properties.Property",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="checklists",
     )
     is_archived = models.BooleanField(default=False)
@@ -32,9 +35,7 @@ class ChecklistTemplate(OrgScopedModel):
             property=property,
         )
         for section in self.sections.prefetch_related("tasks"):
-            new_section = ChecklistSection.objects.create(
-                template=copy, name=section.name, position=section.position
-            )
+            new_section = ChecklistSection.objects.create(template=copy, name=section.name, position=section.position)
             ChecklistTask.objects.bulk_create(
                 ChecklistTask(
                     section=new_section,

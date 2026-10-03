@@ -3,6 +3,7 @@
 Raw storage paths are never exposed. Clients get a URL that embeds a signed
 reference to the file; it stops working after ``SIGNED_URL_MAX_AGE_SECONDS``.
 """
+
 from django.conf import settings
 from django.core import signing
 from django.urls import reverse
@@ -15,9 +16,7 @@ def sign_file(kind: str, object_id) -> str:
 
 
 def unsign_file(token: str, max_age: int | None = None) -> dict:
-    return signing.loads(
-        token, salt=SALT, max_age=max_age or settings.SIGNED_URL_MAX_AGE_SECONDS
-    )
+    return signing.loads(token, salt=SALT, max_age=max_age or settings.SIGNED_URL_MAX_AGE_SECONDS)
 
 
 def file_url(kind: str, object_id, request=None) -> str:

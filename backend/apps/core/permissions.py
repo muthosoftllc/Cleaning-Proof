@@ -3,7 +3,7 @@ import uuid
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
-from apps.organizations.models import Membership, Role
+from apps.organizations.models import ALL_ROLES, MANAGER_ROLES, Membership
 
 ORG_HEADER = "HTTP_X_ORGANIZATION"
 
@@ -26,7 +26,7 @@ def resolve_membership(request) -> Membership:
         try:
             membership = memberships.get(organization_id=uuid.UUID(org_id))
         except (Membership.DoesNotExist, ValueError):
-            raise NotFound("Organization not found.")
+            raise NotFound("Organization not found.") from None
     else:
         found = list(memberships[:2])
         if len(found) != 1:
@@ -51,9 +51,9 @@ class OrgRolePermission(BasePermission):
         if action_roles is not None:
             allowed = action_roles
         elif request.method in SAFE_METHODS:
-            allowed = getattr(view, "read_roles", Role.ALL)
+            allowed = getattr(view, "read_roles", ALL_ROLES)
         else:
-            allowed = getattr(view, "write_roles", Role.MANAGERS)
+            allowed = getattr(view, "write_roles", MANAGER_ROLES)
         if membership.role not in allowed:
             raise PermissionDenied("Your role does not allow this action.")
         return True

@@ -5,6 +5,7 @@ Deliberate choice: the free plan keeps photo evidence and customer share
 links, because a report reaching a customer *is* the growth loop. Free is
 limited by volume instead.
 """
+
 from dataclasses import dataclass, field
 
 UNLIMITED = None
@@ -22,20 +23,44 @@ class Plan:
 
 
 FREE = Plan(
-    code="free", name="Free", jobs_per_month=10, active_properties=3, team_members=1, storage_gb=1,
+    code="free",
+    name="Free",
+    jobs_per_month=10,
+    active_properties=3,
+    team_members=1,
+    storage_gb=1,
     features=frozenset({"photo_evidence", "share_links"}),
 )
 PRO = Plan(
-    code="pro", name="Pro", jobs_per_month=UNLIMITED, active_properties=50, team_members=5, storage_gb=25,
+    code="pro",
+    name="Pro",
+    jobs_per_month=UNLIMITED,
+    active_properties=50,
+    team_members=5,
+    storage_gb=25,
     features=frozenset({"photo_evidence", "share_links", "pdf_reports", "recurring_jobs", "team"}),
 )
 BUSINESS = Plan(
-    code="business", name="Business", jobs_per_month=UNLIMITED, active_properties=UNLIMITED,
-    team_members=UNLIMITED, storage_gb=250,
-    features=frozenset({
-        "photo_evidence", "share_links", "pdf_reports", "recurring_jobs", "team",
-        "multiple_teams", "advanced_permissions", "branding", "analytics", "priority_support",
-    }),
+    code="business",
+    name="Business",
+    jobs_per_month=UNLIMITED,
+    active_properties=UNLIMITED,
+    team_members=UNLIMITED,
+    storage_gb=250,
+    features=frozenset(
+        {
+            "photo_evidence",
+            "share_links",
+            "pdf_reports",
+            "recurring_jobs",
+            "team",
+            "multiple_teams",
+            "advanced_permissions",
+            "branding",
+            "analytics",
+            "priority_support",
+        }
+    ),
 )
 
 PLANS = {p.code: p for p in (FREE, PRO, BUSINESS)}

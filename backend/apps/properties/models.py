@@ -21,9 +21,7 @@ class Customer(OrgScopedModel):
 
 
 class Property(OrgScopedModel):
-    customer = models.ForeignKey(
-        Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name="properties"
-    )
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name="properties")
     name = models.CharField(max_length=150, help_text="e.g. 'Apartment #204'")
     address_line1 = models.CharField(max_length=200, blank=True)
     address_line2 = models.CharField(max_length=200, blank=True)
@@ -39,9 +37,7 @@ class Property(OrgScopedModel):
     default_checklist = models.ForeignKey(
         "checklists.ChecklistTemplate", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
-    assigned_cleaners = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, blank=True, related_name="assigned_properties"
-    )
+    assigned_cleaners = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="assigned_properties")
     is_active = models.BooleanField(default=True)
 
     class Meta(OrgScopedModel.Meta):

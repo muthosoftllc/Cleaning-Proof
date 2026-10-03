@@ -27,9 +27,9 @@ class Entitlements:
 
         best = None
         for sub in Subscription.objects.filter(organization=organization).order_by("-expires_at"):
-            if sub.is_entitled and sub.plan in PLANS:
-                if best is None or _rank(sub.plan) > _rank(best.plan):
-                    best = sub
+            eligible = sub.is_entitled and sub.plan in PLANS
+            if eligible and (best is None or _rank(sub.plan) > _rank(best.plan)):
+                best = sub
         return cls(organization, PLANS[best.plan] if best else FREE, best)
 
     def has(self, feature: str) -> bool:
@@ -58,9 +58,9 @@ class Entitlements:
     def team_members(self) -> int:
         from apps.organizations.models import Membership, Role
 
-        return Membership.objects.filter(
-            organization=self.organization, is_active=True
-        ).exclude(role=Role.VIEWER).count()
+        return (
+            Membership.objects.filter(organization=self.organization, is_active=True).exclude(role=Role.VIEWER).count()
+        )
 
     # --- checks ----------------------------------------------------------
     def check_can_create_job(self, scheduled_start: datetime) -> None:
@@ -95,7 +95,9 @@ class Entitlements:
                 "active_properties": self.active_properties(),
                 "team_members": self.team_members(),
             },
-            "subscription": None if self.subscription is None else {
+            "subscription": None
+            if self.subscription is None
+            else {
                 "status": self.subscription.status,
                 "product_id": self.subscription.product_id,
                 "expires_at": self.subscription.expires_at,

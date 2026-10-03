@@ -13,8 +13,19 @@ class ReportBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = Report
         fields = [
-            "id", "number", "status", "revision", "content_hash", "share_url", "verify_url", "pdf_url",
-            "generated_at", "finalized_at", "approved_at", "approved_by_name", "view_count",
+            "id",
+            "number",
+            "status",
+            "revision",
+            "content_hash",
+            "share_url",
+            "verify_url",
+            "pdf_url",
+            "generated_at",
+            "finalized_at",
+            "approved_at",
+            "approved_by_name",
+            "view_count",
         ]
 
     def get_pdf_url(self, report):

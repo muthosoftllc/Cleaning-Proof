@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
@@ -10,10 +11,14 @@ from apps.jobs.dashboard import DashboardView
 from apps.jobs.views import JobViewSet, PhotoViewSet, RecurringScheduleViewSet, SyncPullView, SyncPushView
 from apps.notifications.views import DeviceView, NotificationViewSet
 from apps.organizations.views import (
-    AuditEventViewSet, InvitationViewSet, MembershipViewSet, OrganizationViewSet,
+    AuditEventViewSet,
+    InvitationViewSet,
+    MembershipViewSet,
+    OrganizationViewSet,
 )
 from apps.properties.views import CustomerViewSet, PropertyViewSet
-from apps.reports import views as report_views
+from apps.reports import public as report_public
+from apps.reports.api import ReportViewSet
 
 router = DefaultRouter()
 router.register("organizations", OrganizationViewSet, basename="organization")
@@ -26,7 +31,7 @@ router.register("checklists", ChecklistTemplateViewSet, basename="checklist")
 router.register("jobs", JobViewSet, basename="job")
 router.register("photos", PhotoViewSet, basename="photo")
 router.register("schedules", RecurringScheduleViewSet, basename="schedule")
-router.register("reports", report_views.ReportViewSet, basename="report")
+router.register("reports", ReportViewSet, basename="report")
 router.register("notifications", NotificationViewSet, basename="notification")
 
 api_v1 = [
@@ -46,10 +51,10 @@ urlpatterns = [
     path("healthz", lambda request: JsonResponse({"ok": True}), name="healthz"),
     path("files/<str:token>/", signed_file, name="signed-file"),
     # Public, no account needed.
-    path("r/<str:number>/", report_views.verify_report, name="verify-report"),
-    path("report/<str:token>/", report_views.public_report, name="public-report"),
-    path("report/<str:token>/pdf/", report_views.public_report_pdf, name="public-report-pdf"),
-    path("report/<str:token>/approve/", report_views.public_report_approve, name="public-report-approve"),
-    path("report/<str:token>/feedback/", report_views.public_report_feedback, name="public-report-feedback"),
-    path("admin/", admin.site.urls),
+    path("r/<str:number>/", report_public.verify_report, name="verify-report"),
+    path("report/<str:token>/", report_public.public_report, name="public-report"),
+    path("report/<str:token>/pdf/", report_public.public_report_pdf, name="public-report-pdf"),
+    path("report/<str:token>/approve/", report_public.public_report_approve, name="public-report-approve"),
+    path("report/<str:token>/feedback/", report_public.public_report_feedback, name="public-report-feedback"),
+    path(settings.ADMIN_URL, admin.site.urls),
 ]

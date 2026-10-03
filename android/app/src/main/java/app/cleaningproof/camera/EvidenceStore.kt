@@ -24,6 +24,9 @@ data class StoredPhoto(val file: File, val sha256: String)
  */
 class EvidenceStore(private val context: Context) {
 
+    /** Root of all stored evidence, for wiping a previous user's data. */
+    val rootDir: File get() = File(context.filesDir, "evidence")
+
     fun newCaptureFile(): File =
         File(context.cacheDir, "capture").apply { mkdirs() }.let { File(it, "${System.nanoTime()}.jpg") }
 

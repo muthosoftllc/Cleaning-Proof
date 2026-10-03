@@ -54,6 +54,4 @@ class OrgScopedViewSet(viewsets.ModelViewSet):
 
     def _audit(self, verb, instance):
         if self.audit_prefix:
-            record_event(
-                self.request, f"{self.audit_prefix}.{verb}", instance, organization=self.organization
-            )
+            record_event(self.request, f"{self.audit_prefix}.{verb}", instance, organization=self.organization)

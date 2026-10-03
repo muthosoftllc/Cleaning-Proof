@@ -22,9 +22,7 @@ class BaseModel(models.Model):
 class OrgScopedModel(BaseModel):
     """A record that belongs to exactly one organization (tenant)."""
 
-    organization = models.ForeignKey(
-        "organizations.Organization", on_delete=models.CASCADE, related_name="+"
-    )
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="+")
 
     class Meta(BaseModel.Meta):
         abstract = True

@@ -2,7 +2,7 @@
 
 Base URL: `/api/v1/`. Authenticate with `Authorization: Bearer <access>`. Org-scoped endpoints also take `X-Organization: <org uuid>`. The header can be left out when the user belongs to exactly one organization.
 
-Errors use standard DRF bodies. A **402** with `code: plan_limit` means the organization's plan doesn't allow the action.
+Errors use standard DRF bodies. A **402** with `code: plan_limit` means the organization's plan doesn't allow the action. Malformed query parameters (UUIDs, datetimes, statuses) return **400**.
 
 ## Auth
 
@@ -11,7 +11,8 @@ Errors use standard DRF bodies. A **402** with `code: plan_limit` means the orga
 | POST | `auth/register/` | `email, password, full_name?, organization_name?`. Returns `user, access, refresh` |
 | POST | `auth/login/` | `email, password`. Returns `access, refresh, user` |
 | POST | `auth/refresh/` | `refresh`. Returns rotated `access, refresh` |
-| GET/PATCH/DELETE | `auth/me/` | The DELETE anonymizes the account (GDPR) |
+| POST | `auth/logout/` | `refresh`. Revokes it server-side. No access token needed |
+| GET/PATCH/DELETE | `auth/me/` | The DELETE anonymizes the account and revokes all its sessions (GDPR) |
 
 ## Organization & team
 
@@ -56,7 +57,7 @@ Errors use standard DRF bodies. A **402** with `code: plan_limit` means the orga
 |--------|------|-------|
 | GET | `sync/pull/?since=<iso>` | `{server_time, jobs[], active_job_ids[]}` for the caller's assigned jobs |
 | POST | `sync/push/` | `{mutations:[...]}` up to 500. Returns `{results:[{id,status,detail?}]}`. See [SYNC.md](SYNC.md) |
-| POST | `photos/` | Multipart: `id, job, file, captured_at, kind, job_task?, issue?, room?, caption?, latitude?, longitude?, sha256?`. Returns 201 (new), 200 (already stored), 409 (issue not synced yet), 400 (checksum mismatch or invalid image) |
+| POST | `photos/` | Multipart: `id, job, file, captured_at, kind, job_task?, issue?, room?, caption?, latitude?, longitude?, sha256?`. JPEG, PNG or WebP up to 15 MB. Returns 201 (new), 200 (already stored), 409 (issue not synced yet), 400 (checksum mismatch or invalid image), 404 (job not in your organizations) |
 | GET | `photos/?job=<id>` | List. There is no delete endpoint |
 
 ## Reports
@@ -85,5 +86,5 @@ Errors use standard DRF bodies. A **402** with `code: plan_limit` means the orga
 | GET | `notifications/?unread=true` | In-app inbox |
 | POST | `notifications/<id>/read/`, `notifications/read-all/` | |
 | GET | `billing/` | Plan, features, limits, usage, subscription, product ids |
-| POST | `billing/google-play/verify/` | Owner only. `{product_id, purchase_token}` |
-| POST | `billing/google-play/rtdn/?token=<secret>` | Cloud Pub/Sub push endpoint |
+| POST | `billing/google-play/verify/` | Owner only. `{product_id, purchase_token}` (known product ids only) |
+| POST | `billing/google-play/rtdn/` | Cloud Pub/Sub push endpoint. Authenticated by Pub/Sub OIDC token (preferred) or `?token=<secret>` |

@@ -4,10 +4,13 @@ from .base import APITestCase
 class ChecklistTests(APITestCase):
     def test_create_with_sections_and_reorder(self):
         client = self.client_for(self.owner)
-        data = {"name": "Office", "sections": [
-            {"name": "Desk area", "tasks": [{"title": "Desks"}, {"title": "Bins", "is_required": False}]},
-            {"name": "Kitchen", "tasks": [{"title": "Sink", "requires_photo": True}]},
-        ]}
+        data = {
+            "name": "Office",
+            "sections": [
+                {"name": "Desk area", "tasks": [{"title": "Desks"}, {"title": "Bins", "is_required": False}]},
+                {"name": "Kitchen", "tasks": [{"title": "Sink", "requires_photo": True}]},
+            ],
+        }
         created = client.post("/api/v1/checklists/", data, format="json")
         self.assertEqual(created.status_code, 201, created.data)
         sections = created.data["sections"]
@@ -19,8 +22,11 @@ class ChecklistTests(APITestCase):
 
     def test_duplicate_for_property(self):
         client = self.client_for(self.owner)
-        response = client.post(f"/api/v1/checklists/{self.template.id}/duplicate/",
-                               {"name": "Apt 204 special", "property": str(self.property.id)}, format="json")
+        response = client.post(
+            f"/api/v1/checklists/{self.template.id}/duplicate/",
+            {"name": "Apt 204 special", "property": str(self.property.id)},
+            format="json",
+        )
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data["property"], self.property.id)
         self.assertEqual(len(response.data["sections"]), len(self.template.sections.all()))
@@ -31,3 +37,10 @@ class ChecklistTests(APITestCase):
         client.put(f"/api/v1/checklists/{self.template.id}/", {"name": "Changed", "sections": []}, format="json")
         detail = client.get(f"/api/v1/jobs/{job['id']}/")
         self.assertEqual(len(detail.data["tasks"]), 15)
+
+    def test_template_size_is_bounded(self):
+        sections = [{"name": f"S{i}", "tasks": [{"title": "t"}]} for i in range(51)]
+        response = self.client_for(self.owner).post(
+            "/api/v1/checklists/", {"name": "Huge", "sections": sections}, format="json"
+        )
+        self.assertEqual(response.status_code, 400)

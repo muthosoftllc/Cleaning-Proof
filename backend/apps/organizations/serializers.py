@@ -11,19 +11,22 @@ class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            "id", "name", "logo", "brand_color", "contact_email", "contact_phone",
-            "website", "timezone", "role", "created_at",
+            "id",
+            "name",
+            "logo",
+            "brand_color",
+            "contact_email",
+            "contact_phone",
+            "website",
+            "timezone",
+            "role",
+            "created_at",
         ]
         read_only_fields = ["id", "created_at", "role"]
 
     def get_role(self, org):
         roles = self.context.get("roles_by_org") or {}
         return roles.get(org.id)
-
-    def validate_brand_color(self, value):
-        if value and (len(value) != 7 or not value.startswith("#")):
-            raise serializers.ValidationError("Use a hex color like #0F766E.")
-        return value
 
 
 class MembershipSerializer(serializers.ModelSerializer):

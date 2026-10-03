@@ -10,7 +10,7 @@ from apps.billing.entitlements import Entitlements
 from apps.core.permissions import OrgRolePermission, resolve_membership
 
 from .audit import record_event
-from .models import AuditEvent, Invitation, Membership, Organization, Role
+from .models import ALL_ROLES, MANAGER_ROLES, READER_ROLES, AuditEvent, Invitation, Membership, Organization, Role
 from .serializers import (
     AcceptInvitationSerializer,
     AuditEventSerializer,
@@ -33,9 +33,7 @@ class OrganizationViewSet(
     permission_classes = [IsAuthenticated]
 
     def _memberships(self):
-        return Membership.objects.filter(
-            user=self.request.user, is_active=True, organization__deleted_at__isnull=True
-        )
+        return Membership.objects.filter(user=self.request.user, is_active=True, organization__deleted_at__isnull=True)
 
     def get_queryset(self):
         return Organization.objects.filter(id__in=self._memberships().values("organization_id"))
@@ -71,7 +69,7 @@ class MembershipViewSet(
 
     serializer_class = MembershipSerializer
     permission_classes = [OrgRolePermission]
-    read_roles = Role.MANAGERS | {Role.VIEWER}
+    read_roles = READER_ROLES
 
     def get_queryset(self):
         membership = resolve_membership(self.request)
@@ -93,8 +91,12 @@ class MembershipViewSet(
                 raise ValidationError("An organization must keep at least one owner.")
         instance = serializer.save()
         record_event(
-            self.request, "membership.updated", instance, organization=caller.organization,
-            role=instance.role, is_active=instance.is_active,
+            self.request,
+            "membership.updated",
+            instance,
+            organization=caller.organization,
+            role=instance.role,
+            is_active=instance.is_active,
         )
 
 
@@ -106,9 +108,9 @@ class InvitationViewSet(
 
     serializer_class = InvitationSerializer
     permission_classes = [OrgRolePermission]
-    read_roles = Role.MANAGERS
-    write_roles = Role.MANAGERS
-    action_roles = {"accept": Role.ALL}
+    read_roles = MANAGER_ROLES
+    write_roles = MANAGER_ROLES
+    action_roles = {"accept": ALL_ROLES}
 
     def get_permissions(self):
         if self.action == "accept":
@@ -146,7 +148,7 @@ class InvitationViewSet(
         try:
             invitation = Invitation.objects.select_for_update().get(token=serializer.validated_data["token"])
         except Invitation.DoesNotExist:
-            raise ValidationError({"token": "Invalid invitation."})
+            raise ValidationError({"token": "Invalid invitation."}) from None
         if not invitation.is_pending:
             raise ValidationError({"token": "This invitation is no longer valid."})
         if invitation.email != request.user.email:
@@ -168,7 +170,7 @@ class InvitationViewSet(
 class AuditEventViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AuditEventSerializer
     permission_classes = [OrgRolePermission]
-    read_roles = Role.MANAGERS
+    read_roles = MANAGER_ROLES
 
     def get_queryset(self):
         org = resolve_membership(self.request).organization

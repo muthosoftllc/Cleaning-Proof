@@ -15,7 +15,10 @@ import app.cleaningproof.data.remote.PullResponse
 import app.cleaningproof.sync.SyncScheduler
 import app.cleaningproof.util.isoToMillis
 import app.cleaningproof.util.toIso
+import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
@@ -27,6 +30,8 @@ import kotlinx.serialization.json.putJsonArray
  * queued as a mutation in the same transaction, then a sync is scheduled.
  * The UI only ever reads Room, so the app behaves identically offline.
  */
+private const val COMPLETED_RETENTION_MS = 14L * 24 * 60 * 60 * 1000
+
 class JobRepository(
     private val db: AppDatabase,
     private val sync: SyncScheduler,
@@ -170,7 +175,13 @@ class JobRepository(
      * (schedule, property info, report) are refreshed. Local photos are never
      * touched here.
      */
-    suspend fun applyPull(organizationId: String, pull: PullResponse) = db.withTransaction {
+    suspend fun applyPull(organizationId: String, pull: PullResponse) {
+        val releasedFiles = db.withTransaction { mergePull(organizationId, pull) }
+        // File I/O after the transaction commits; only server-confirmed photos are released.
+        releasedFiles.forEach { File(it).delete() }
+    }
+
+    private suspend fun mergePull(organizationId: String, pull: PullResponse): List<String> {
         for (dto in pull.jobs) {
             val local = db.jobs().get(dto.id)
             val dirty = db.mutations().pendingCountForJob(dto.id) > 0
@@ -224,16 +235,32 @@ class JobRepository(
                 )
             }
         }
-        // Jobs reassigned or cancelled elsewhere disappear, unless they still hold unsynced work.
+        // Jobs reassigned or cancelled elsewhere, and completed jobs past the
+        // retention window, leave the device -- unless they still hold unsynced work.
         val active = pull.activeJobIds.toSet()
+        val keepCompletedSince = now() - COMPLETED_RETENTION_MS
+        val released = mutableListOf<String>()
         for (id in db.jobs().allIds()) {
             val job = db.jobs().get(id) ?: continue
-            val recentlyFinished = job.status == JobStatus.COMPLETED
+            val recentlyFinished = job.status == JobStatus.COMPLETED && (job.completedAt ?: 0) > keepCompletedSince
             val hasUnsynced = db.mutations().pendingCountForJob(id) > 0 || db.photos().pendingCountForJob(id) > 0
-            if (id !in active && !recentlyFinished && !hasUnsynced) {
-                db.jobs().delete(id)
-            }
+            if ((id in active && job.status != JobStatus.COMPLETED) || recentlyFinished || hasUnsynced) continue
+            released += db.photos().uploadedLocalPaths(id)
+            db.photos().deleteUploadedForJob(id)
+            db.tasks().deleteForJob(id)
+            db.issues().deleteForJob(id)
+            db.jobs().delete(id)
         }
+        return released
+    }
+
+    /** True if this device holds evidence or changes the server hasn't accepted. */
+    suspend fun hasUnsyncedWork(): Boolean = db.mutations().totalCount() > 0 || db.photos().unconfirmedCount() > 0
+
+    /** Remove every trace of the previous user's data (used when another user signs in). */
+    suspend fun wipeLocalData(evidenceDir: File) = withContext(Dispatchers.IO) {
+        db.clearAllTables() // manages its own transaction; must not run inside one
+        evidenceDir.deleteRecursively()
     }
 
     private fun JobDto.toEntity(organizationId: String) = JobEntity(

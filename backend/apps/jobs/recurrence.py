@@ -1,4 +1,5 @@
 """Expand a RecurringSchedule into concrete occurrence datetimes."""
+
 import calendar
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo

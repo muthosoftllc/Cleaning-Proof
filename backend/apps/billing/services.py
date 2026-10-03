@@ -23,7 +23,7 @@ def sync_purchase(purchase_token: str, organization=None, user=None, expected_pr
     try:
         state = client.get_subscription(purchase_token)
     except VerificationError as exc:
-        raise ValidationError({"purchase_token": str(exc)})
+        raise ValidationError({"purchase_token": str(exc)}) from None
 
     if expected_product and state.product_id != expected_product:
         raise ValidationError({"product_id": "Product does not match the purchase."})
@@ -46,9 +46,9 @@ def sync_purchase(purchase_token: str, organization=None, user=None, expected_pr
 
     # Upgrades/downgrades issue a new token; retire the one it replaces.
     if state.linked_purchase_token:
-        Subscription.objects.filter(
-            purchase_token=state.linked_purchase_token, organization=organization
-        ).update(status=SubscriptionStatus.EXPIRED, updated_at=timezone.now())
+        Subscription.objects.filter(purchase_token=state.linked_purchase_token, organization=organization).update(
+            status=SubscriptionStatus.EXPIRED, updated_at=timezone.now()
+        )
 
     subscription, _ = Subscription.objects.update_or_create(
         purchase_token=purchase_token,

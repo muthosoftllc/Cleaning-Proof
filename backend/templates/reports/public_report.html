@@ -108,24 +108,5 @@
   <div class="muted">Contact: {{ s.company.name }}{% if s.company.contact_phone %} · {{ s.company.contact_phone }}{% endif %}{% if s.company.contact_email %} · {{ s.company.contact_email }}{% endif %}</div>
 </div>
 
-<script>
-  document.querySelectorAll("[data-ts]").forEach(function (el) {
-    var v = el.getAttribute("data-ts"); if (!v || v === "None") return;
-    var d = new Date(v); if (!isNaN(d)) el.textContent = d.toLocaleString([], {dateStyle: "medium", timeStyle: "short"});
-  });
-  (function () {
-    var c = document.getElementById("sig"); if (!c) return;
-    var ctx = c.getContext("2d"), drawing = false, dirty = false;
-    function size() { var r = c.getBoundingClientRect(); c.width = r.width; c.height = r.height; ctx.lineWidth = 2; ctx.lineCap = "round"; }
-    size(); window.addEventListener("resize", size);
-    function pos(e) { var r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
-    c.addEventListener("pointerdown", function (e) { drawing = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p[0], p[1]); });
-    c.addEventListener("pointermove", function (e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); dirty = true; });
-    ["pointerup", "pointerleave"].forEach(function (t) { c.addEventListener(t, function () { drawing = false; }); });
-    document.getElementById("sig-clear").onclick = function () { ctx.clearRect(0, 0, c.width, c.height); dirty = false; };
-    document.getElementById("approve-form").addEventListener("submit", function () {
-      if (dirty) document.getElementById("sig-data").value = c.toDataURL("image/png");
-    });
-  })();
-</script>
+
 {% endblock %}

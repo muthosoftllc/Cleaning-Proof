@@ -70,6 +70,9 @@ interface IssueDao {
 
     @Upsert
     suspend fun upsertAll(issues: List<IssueEntity>)
+
+    @Query("DELETE FROM issues WHERE jobId = :jobId")
+    suspend fun deleteForJob(jobId: String)
 }
 
 @Dao
@@ -88,6 +91,16 @@ interface PhotoDao {
 
     @Query("SELECT COUNT(*) FROM photos WHERE jobId = :jobId AND uploadState = 'pending'")
     suspend fun pendingCountForJob(jobId: String): Int
+
+    /** Evidence that hasn't been confirmed by the server (pending or refused). */
+    @Query("SELECT COUNT(*) FROM photos WHERE uploadState != 'uploaded'")
+    suspend fun unconfirmedCount(): Int
+
+    @Query("SELECT localPath FROM photos WHERE jobId = :jobId AND uploadState = 'uploaded' AND localPath IS NOT NULL")
+    suspend fun uploadedLocalPaths(jobId: String): List<String>
+
+    @Query("DELETE FROM photos WHERE jobId = :jobId AND uploadState = 'uploaded'")
+    suspend fun deleteUploadedForJob(jobId: String)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIfAbsent(photo: PhotoEntity)
@@ -115,6 +128,10 @@ interface MutationDao {
 
     @Query("SELECT COUNT(*) FROM mutations WHERE jobId = :jobId AND state = 'pending'")
     suspend fun pendingCountForJob(jobId: String): Int
+
+    /** Pending or rejected: both still hold work the server doesn't have. */
+    @Query("SELECT COUNT(*) FROM mutations")
+    suspend fun totalCount(): Int
 
     @Insert
     suspend fun insert(mutation: MutationEntity)

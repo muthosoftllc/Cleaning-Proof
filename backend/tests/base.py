@@ -15,8 +15,6 @@ from apps.checklists.defaults import create_default_templates
 from apps.organizations.models import Membership, Organization, Role
 from apps.properties.models import Customer, Property
 
-TEMP_MEDIA = tempfile.mkdtemp(prefix="cp-test-media-")
-
 
 def make_image(color="red", size=(64, 48), fmt="JPEG") -> bytes:
     buf = io.BytesIO()
@@ -24,12 +22,22 @@ def make_image(color="red", size=(64, 48), fmt="JPEG") -> bytes:
     return buf.getvalue()
 
 
-@override_settings(MEDIA_ROOT=TEMP_MEDIA, PUBLIC_BASE_URL="https://cleaningproof.test", SECURE_SSL_REDIRECT=False)
+@override_settings(PUBLIC_BASE_URL="https://cleaningproof.test", SECURE_SSL_REDIRECT=False)
 class APITestCase(TestCase):
+    """Each test class gets its own throwaway MEDIA_ROOT."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.media_root = tempfile.mkdtemp(prefix="cp-test-media-")
+        cls._media_override = override_settings(MEDIA_ROOT=cls.media_root)
+        cls._media_override.enable()
+        super().setUpClass()
+
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        shutil.rmtree(TEMP_MEDIA, ignore_errors=True)
+        cls._media_override.disable()
+        shutil.rmtree(cls.media_root, ignore_errors=True)
 
     def setUp(self):
         from django.core.cache import cache
@@ -42,8 +50,12 @@ class APITestCase(TestCase):
         self.templates = create_default_templates(self.org)
         self.template = self.templates[0]
         self.property = Property.objects.create(
-            organization=self.org, customer=self.customer, name="Apartment #204",
-            address_line1="1 Main St", city="Lisbon", access_notes="Lockbox 1234",
+            organization=self.org,
+            customer=self.customer,
+            name="Apartment #204",
+            address_line1="1 Main St",
+            city="Lisbon",
+            access_notes="Lockbox 1234",
             default_checklist=self.template,
         )
 

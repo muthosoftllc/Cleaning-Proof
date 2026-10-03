@@ -3,10 +3,12 @@
 The device never decides entitlements. It hands the purchase token to the
 server, which asks Google, stores the result and acknowledges the purchase.
 """
+
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import lru_cache
+from urllib.parse import quote
 
 from django.conf import settings
 from django.utils import timezone
@@ -27,6 +29,11 @@ STATE_MAP = {
     "SUBSCRIPTION_STATE_EXPIRED": SubscriptionStatus.EXPIRED,
     "SUBSCRIPTION_STATE_PENDING": SubscriptionStatus.PENDING,
 }
+
+
+def _seg(value: str) -> str:
+    """Encode a value as a single URL path segment (no '/', '?', '..' tricks)."""
+    return quote(value, safe="")
 
 
 class VerificationError(Exception):
@@ -76,7 +83,7 @@ class GooglePlayClient:
     def get_subscription(self, purchase_token: str) -> PurchaseState:
         if not settings.GOOGLE_PLAY_SERVICE_ACCOUNT_FILE:
             raise VerificationError("Google Play verification is not configured.")
-        url = f"{API}/{settings.GOOGLE_PLAY_PACKAGE_NAME}/purchases/subscriptionsv2/tokens/{purchase_token}"
+        url = f"{API}/{_seg(settings.GOOGLE_PLAY_PACKAGE_NAME)}/purchases/subscriptionsv2/tokens/{_seg(purchase_token)}"
         response = self._session().get(url, timeout=15)
         if response.status_code != 200:
             logger.warning("Play verification failed %s: %s", response.status_code, response.text[:300])
@@ -84,8 +91,10 @@ class GooglePlayClient:
         return parse_subscription_v2(response.json())
 
     def acknowledge(self, product_id: str, purchase_token: str) -> None:
-        url = (f"{API}/{settings.GOOGLE_PLAY_PACKAGE_NAME}/purchases/subscriptions/"
-               f"{product_id}/tokens/{purchase_token}:acknowledge")
+        url = (
+            f"{API}/{_seg(settings.GOOGLE_PLAY_PACKAGE_NAME)}/purchases/subscriptions/"
+            f"{_seg(product_id)}/tokens/{_seg(purchase_token)}:acknowledge"
+        )
         response = self._session().post(url, json={}, timeout=15)
         if response.status_code not in (200, 204):
             logger.warning("Play acknowledge failed %s: %s", response.status_code, response.text[:300])
@@ -98,11 +107,16 @@ class FakeGooglePlayClient:
         try:
             _, product_id, org_id = purchase_token.split(":", 2)
         except ValueError:
-            raise VerificationError("Invalid fake token.")
+            raise VerificationError("Invalid fake token.") from None
         return PurchaseState(
-            product_id=product_id, status=SubscriptionStatus.ACTIVE,
-            expires_at=timezone.now() + timedelta(days=30), auto_renewing=True, acknowledged=False,
-            linked_purchase_token="", obfuscated_account_id=org_id, raw={"fake": True},
+            product_id=product_id,
+            status=SubscriptionStatus.ACTIVE,
+            expires_at=timezone.now() + timedelta(days=30),
+            auto_renewing=True,
+            acknowledged=False,
+            linked_purchase_token="",
+            obfuscated_account_id=org_id,
+            raw={"fake": True},
         )
 
     def acknowledge(self, product_id: str, purchase_token: str) -> None:

@@ -2,10 +2,12 @@ import secrets
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
 from apps.core.models import BaseModel
+from apps.core.validators import validate_timezone
 
 
 class Role(models.TextChoices):
@@ -16,19 +18,26 @@ class Role(models.TextChoices):
 
 
 # Role groups used by permission checks.
-Role.ALL = frozenset(Role.values)
-Role.MANAGERS = frozenset({Role.OWNER, Role.ADMIN})
-Role.FIELD = frozenset({Role.OWNER, Role.ADMIN, Role.CLEANER})
+ALL_ROLES = frozenset(Role.values)
+MANAGER_ROLES = frozenset({Role.OWNER, Role.ADMIN})
+FIELD_ROLES = frozenset({Role.OWNER, Role.ADMIN, Role.CLEANER})  # may execute jobs
+READER_ROLES = MANAGER_ROLES | {Role.VIEWER}  # back-office read access
+
+
+# Strict: the value is interpolated into CSS on public pages and into PDFs.
+HEX_COLOR = RegexValidator(r"^#[0-9A-Fa-f]{6}$", "Use a hex color like #0F766E.")
 
 
 class Organization(BaseModel):
     name = models.CharField(max_length=150)
     logo = models.ImageField(upload_to="org-logos/", blank=True, max_length=255)
-    brand_color = models.CharField(max_length=7, blank=True, help_text="Hex color, e.g. #0F766E")
+    brand_color = models.CharField(
+        max_length=7, blank=True, validators=[HEX_COLOR], help_text="Hex color, e.g. #0F766E"
+    )
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=40, blank=True)
     website = models.URLField(blank=True)
-    timezone = models.CharField(max_length=64, default="UTC")
+    timezone = models.CharField(max_length=64, default="UTC", validators=[validate_timezone])
     deleted_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
@@ -55,7 +64,7 @@ class Membership(BaseModel):
 
     @property
     def is_manager(self) -> bool:
-        return self.role in Role.MANAGERS
+        return self.role in MANAGER_ROLES
 
     @property
     def is_cleaner(self) -> bool:

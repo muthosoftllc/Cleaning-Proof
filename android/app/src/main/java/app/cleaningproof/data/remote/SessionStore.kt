@@ -30,6 +30,11 @@ class SessionStore(context: Context) {
         get() = prefs.getString(KEY_ROLE, null)
         set(value) = prefs.edit().putString(KEY_ROLE, value).apply()
 
+    /** Owner of the data in the local database (survives logout on purpose). */
+    var userId: String?
+        get() = prefs.getString(KEY_USER_ID, null)
+        set(value) = prefs.edit().putString(KEY_USER_ID, value).apply()
+
     var userName: String?
         get() = prefs.getString(KEY_NAME, null)
         set(value) = prefs.edit().putString(KEY_NAME, value).apply()
@@ -59,6 +64,7 @@ class SessionStore(context: Context) {
         const val KEY_ORG = "org"
         const val KEY_ROLE = "role"
         const val KEY_NAME = "name"
+        const val KEY_USER_ID = "user_id"
         const val KEY_LAST_PULL = "last_pull"
     }
 }

@@ -3,6 +3,7 @@
 Without FCM credentials configured, pushes are logged instead of sent so the
 rest of the system (and the in-app notification list) works in development.
 """
+
 import logging
 from functools import lru_cache
 

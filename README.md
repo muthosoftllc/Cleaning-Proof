@@ -25,8 +25,11 @@ export DJANGO_DEBUG=1 BILLING_FAKE_VERIFIER=1
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver 0.0.0.0:8000
-python manage.py test          # 60 tests: tenancy, roles, sync conflicts, reports, billing
+python manage.py test          # 89 tests: tenancy, roles, sync, reports, billing, security
+pip install -r requirements-dev.txt && ruff check . && ruff format --check . && pip-audit -r requirements.txt
 ```
+
+CI runs the same checks plus the test suite on PostgreSQL. Run it locally against Postgres with `DATABASE_URL=postgres://...` before touching anything that locks rows or uses database-specific features.
 
 With Docker: `cp backend/.env.example backend/.env` (set `DJANGO_DEBUG=1` locally), then `docker compose up --build`.
 
@@ -52,5 +55,5 @@ cd android && ./gradlew assembleDebug testDebugUnitTest
 - [Architecture](docs/ARCHITECTURE.md): components, data model, key decisions
 - [API](docs/API.md): endpoint reference
 - [Offline sync](docs/SYNC.md): the queue, conflict rules, and the "never lose evidence" guarantees
-- [Security & privacy](docs/SECURITY.md)
+- [Security & privacy](docs/SECURITY.md) and the [October 2026 review](docs/SECURITY_REVIEW.md)
 - [Roadmap](docs/ROADMAP.md): MVP status and what is deliberately deferred

@@ -5,6 +5,7 @@ import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
@@ -17,6 +18,10 @@ interface ApiService {
 
     @POST("auth/register/")
     suspend fun register(@Body body: RegisterRequest): TokenResponse
+
+    /** Revokes the refresh token server-side. */
+    @POST("auth/logout/")
+    suspend fun logout(@Body body: RefreshRequest): Response<Unit>
 
     @GET("organizations/")
     suspend fun organizations(): Page<OrganizationDto>
@@ -37,6 +42,9 @@ interface ApiService {
 
     @POST("devices/")
     suspend fun registerDevice(@Body body: DeviceRequest): Response<Unit>
+
+    @HTTP(method = "DELETE", path = "devices/", hasBody = true)
+    suspend fun unregisterDevice(@Body body: DeviceRequest): Response<Unit>
 
     @GET("billing/")
     suspend fun billing(): BillingStatusDto

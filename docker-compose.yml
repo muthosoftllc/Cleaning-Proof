@@ -1,4 +1,4 @@
-# Local/production-like stack: Postgres + API + scheduler.
+# Local/production-like stack: Postgres + Redis + API + scheduler.
 #   cp backend/.env.example backend/.env   (set DJANGO_DEBUG=1 for local use)
 #   docker compose up --build
 #   docker compose exec web python manage.py createsuperuser
@@ -15,19 +15,34 @@ services:
       interval: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]  # cache only, no persistence
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
   web:
     build: ./backend
     env_file: ./backend/.env
-    command: sh -c "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    command: sh -c "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
     ports: ["8000:8000"]
     volumes: [media:/app/media]
     depends_on:
       db: { condition: service_healthy }
+      redis: { condition: service_healthy }
 
   # Recurring jobs + reminders. Swap for Celery beat once there is a queue.
   scheduler:
     build: ./backend
     env_file: ./backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      # One-shot commands exit right after their work; run side effects inline.
+      BACKGROUND_TASKS_INLINE: "1"
     command: >
       sh -c "while true; do
         python manage.py generate_recurring_jobs;
@@ -35,6 +50,8 @@ services:
         sleep 300;
       done"
     volumes: [media:/app/media]
+    healthcheck:
+      disable: true
     depends_on:
       db: { condition: service_healthy }
 

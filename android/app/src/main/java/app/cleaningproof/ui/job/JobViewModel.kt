@@ -8,6 +8,7 @@ import app.cleaningproof.data.local.JobEntity
 import app.cleaningproof.data.local.PhotoEntity
 import app.cleaningproof.data.local.TaskEntity
 import app.cleaningproof.data.local.TaskStatus
+import app.cleaningproof.data.local.UploadState
 import java.util.UUID
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -61,7 +62,7 @@ class JobViewModel(private val container: AppContainer, private val jobId: Strin
             done = tasks.count { it.status == TaskStatus.DONE },
             total = tasks.size,
             requiredLeft = tasks.count { it.isRequired && it.status == TaskStatus.PENDING },
-            pendingUploads = photos.count { it.uploadState == "pending" }
+            pendingUploads = photos.count { it.uploadState == UploadState.PENDING }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), JobUiState())
 

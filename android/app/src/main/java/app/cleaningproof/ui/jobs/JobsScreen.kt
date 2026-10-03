@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import app.cleaningproof.AppContainer
 import app.cleaningproof.data.local.JobEntity
 import app.cleaningproof.data.local.JobStatus
@@ -51,6 +52,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class JobsViewModel(private val container: AppContainer) : ViewModel() {
     private val zone = ZoneId.systemDefault()
@@ -66,7 +68,9 @@ class JobsViewModel(private val container: AppContainer) : ViewModel() {
     val userName = container.session.userName
 
     fun refresh() = container.syncScheduler.requestSync()
-    fun logout() = container.auth.logout()
+    fun logout() {
+        viewModelScope.launch { container.auth.logout() }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

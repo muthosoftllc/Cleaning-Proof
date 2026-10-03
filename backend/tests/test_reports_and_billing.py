@@ -23,8 +23,10 @@ class ReportFlowMixin:
         client = self.client_for(self.cleaner)
         photo_id = str(uuid.uuid4())
         mutations = [self.mutation("job.start", job["id"])]
-        for task in JobTask.objects.filter(job_id=job["id"]):
-            mutations.append(self.mutation("task.update", job["id"], {"task_id": str(task.id), "status": "done"}))
+        mutations += [
+            self.mutation("task.update", job["id"], {"task_id": str(task.id), "status": "done"})
+            for task in JobTask.objects.filter(job_id=job["id"])
+        ]
         mutations.append(self.mutation("job.finish", job["id"], {"photo_ids": [photo_id] if with_photo else []}))
         self.push(client, *mutations)
         if with_photo:
@@ -97,14 +99,17 @@ class PublicReportTests(ReportFlowMixin, APITestCase):
     def test_force_finalize_records_missing_photos(self):
         job = self.create_job()
         mutations = [self.mutation("job.start", job["id"])]
-        for task in JobTask.objects.filter(job_id=job["id"]):
-            mutations.append(self.mutation("task.update", job["id"], {"task_id": str(task.id), "status": "done"}))
+        mutations += [
+            self.mutation("task.update", job["id"], {"task_id": str(task.id), "status": "done"})
+            for task in JobTask.objects.filter(job_id=job["id"])
+        ]
         mutations.append(self.mutation("job.finish", job["id"], {"photo_ids": [str(uuid.uuid4())]}))
         self.push(self.client_for(self.cleaner), *mutations)
         report = Report.objects.get(job_id=job["id"])
         self.assertEqual(report.status, ReportStatus.PENDING_EVIDENCE)
-        response = self.client_for(self.owner).post(f"/api/v1/reports/{report.id}/finalize/", {"force": True},
-                                                    format="json")
+        response = self.client_for(self.owner).post(
+            f"/api/v1/reports/{report.id}/finalize/", {"force": True}, format="json"
+        )
         self.assertEqual(response.data["status"], "final")
         self.assertEqual(len(response.data["snapshot"]["missing_photo_ids"]), 1)
 
@@ -119,9 +124,14 @@ class PublicReportTests(ReportFlowMixin, APITestCase):
 
 class PdfTests(ReportFlowMixin, APITestCase):
     def test_pdf_generated_for_pro_plan(self):
-        Subscription.objects.create(organization=self.org, plan="pro", product_id="cleaningproof_pro",
-                                    purchase_token="tok", status="active",
-                                    expires_at=timezone.now() + timedelta(days=10))
+        Subscription.objects.create(
+            organization=self.org,
+            plan="pro",
+            product_id="cleaningproof_pro",
+            purchase_token="tok",
+            status="active",
+            expires_at=timezone.now() + timedelta(days=10),
+        )
         report = self.complete_job()
         report.refresh_from_db()
         self.assertTrue(report.pdf.name.endswith(".pdf"))
@@ -145,44 +155,71 @@ class BillingTests(APITestCase):
     def test_free_job_limit(self):
         for _ in range(10):
             self.create_job()
-        response = self.client_for(self.owner).post("/api/v1/jobs/", {
-            "property": str(self.property.id), "scheduled_start": (timezone.now() + timedelta(hours=2)).isoformat(),
-        }, format="json")
+        response = self.client_for(self.owner).post(
+            "/api/v1/jobs/",
+            {
+                "property": str(self.property.id),
+                "scheduled_start": (timezone.now() + timedelta(hours=2)).isoformat(),
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 402)
 
     def test_verify_purchase_upgrades_plan(self):
         token = f"fake:cleaningproof_pro:{self.org.id}"
-        response = self.client_for(self.owner).post("/api/v1/billing/google-play/verify/", {
-            "product_id": "cleaningproof_pro", "purchase_token": token}, format="json")
+        response = self.client_for(self.owner).post(
+            "/api/v1/billing/google-play/verify/",
+            {"product_id": "cleaningproof_pro", "purchase_token": token},
+            format="json",
+        )
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["plan"], "pro")
         self.assertTrue(Subscription.objects.get().acknowledged)
 
     def test_purchase_for_other_org_rejected(self):
         token = f"fake:cleaningproof_pro:{uuid.uuid4()}"
-        response = self.client_for(self.owner).post("/api/v1/billing/google-play/verify/", {
-            "product_id": "cleaningproof_pro", "purchase_token": token}, format="json")
+        response = self.client_for(self.owner).post(
+            "/api/v1/billing/google-play/verify/",
+            {"product_id": "cleaningproof_pro", "purchase_token": token},
+            format="json",
+        )
         self.assertEqual(response.status_code, 400)
 
     def test_only_owner_can_verify(self):
-        response = self.client_for(self.cleaner).post("/api/v1/billing/google-play/verify/", {
-            "product_id": "cleaningproof_pro", "purchase_token": "x"}, format="json")
+        response = self.client_for(self.cleaner).post(
+            "/api/v1/billing/google-play/verify/",
+            {"product_id": "cleaningproof_pro", "purchase_token": "x"},
+            format="json",
+        )
         self.assertEqual(response.status_code, 403)
 
     def test_expired_subscription_falls_back_to_free(self):
-        Subscription.objects.create(organization=self.org, plan="business", product_id="cleaningproof_business",
-                                    purchase_token="old", status="canceled",
-                                    expires_at=timezone.now() - timedelta(days=1))
+        Subscription.objects.create(
+            organization=self.org,
+            plan="business",
+            product_id="cleaningproof_business",
+            purchase_token="old",
+            status="canceled",
+            expires_at=timezone.now() - timedelta(days=1),
+        )
         self.assertEqual(self.client_for(self.owner).get("/api/v1/billing/").data["plan"], "free")
 
     def test_rtdn_requires_secret_and_reverifies(self):
         token = f"fake:cleaningproof_business:{self.org.id}"
-        body = {"message": {"data": base64.b64encode(json.dumps({
-            "subscriptionNotification": {"purchaseToken": token, "notificationType": 4}}).encode()).decode()}}
-        self.assertEqual(self.client.post("/api/v1/billing/google-play/rtdn/", body,
-                                          content_type="application/json").status_code, 403)
-        response = self.client.post("/api/v1/billing/google-play/rtdn/?token=secret", body,
-                                    content_type="application/json")
+        body = {
+            "message": {
+                "data": base64.b64encode(
+                    json.dumps({"subscriptionNotification": {"purchaseToken": token, "notificationType": 4}}).encode()
+                ).decode()
+            }
+        }
+        self.assertEqual(
+            self.client.post("/api/v1/billing/google-play/rtdn/", body, content_type="application/json").status_code,
+            403,
+        )
+        response = self.client.post(
+            "/api/v1/billing/google-play/rtdn/?token=secret", body, content_type="application/json"
+        )
         self.assertEqual(response.status_code, 204)
         self.assertEqual(Subscription.objects.get().plan, "business")
 
@@ -190,33 +227,49 @@ class BillingTests(APITestCase):
 class RecurringTests(APITestCase):
     def setUp(self):
         super().setUp()
-        Subscription.objects.create(organization=self.org, plan="pro", product_id="cleaningproof_pro",
-                                    purchase_token="tok", status="active")
+        Subscription.objects.create(
+            organization=self.org, plan="pro", product_id="cleaningproof_pro", purchase_token="tok", status="active"
+        )
 
     def test_weekly_mon_thu_occurrences(self):
         from datetime import date, time
 
-        schedule = RecurringSchedule(frequency="weekly", weekdays=[0, 3], start_time=time(9),
-                                     start_date=date(2026, 10, 5), timezone="Europe/Lisbon")
+        schedule = RecurringSchedule(
+            frequency="weekly",
+            weekdays=[0, 3],
+            start_time=time(9),
+            start_date=date(2026, 10, 5),
+            timezone="Europe/Lisbon",
+        )
         found = occurrences(schedule, date(2026, 10, 5), date(2026, 10, 18))
-        self.assertEqual([d.strftime("%a %d %H:%M") for d in found],
-                         ["Mon 05 09:00", "Thu 08 09:00", "Mon 12 09:00", "Thu 15 09:00"])
+        self.assertEqual(
+            [d.strftime("%a %d %H:%M") for d in found], ["Mon 05 09:00", "Thu 08 09:00", "Mon 12 09:00", "Thu 15 09:00"]
+        )
 
     def test_biweekly_and_monthly(self):
         from datetime import date, time
 
         bi = RecurringSchedule(frequency="biweekly", weekdays=[0], start_time=time(9), start_date=date(2026, 10, 5))
         self.assertEqual(len(occurrences(bi, date(2026, 10, 5), date(2026, 11, 1))), 2)
-        monthly = RecurringSchedule(frequency="monthly", day_of_month=31, start_time=time(9),
-                                    start_date=date(2026, 1, 1))
+        monthly = RecurringSchedule(
+            frequency="monthly", day_of_month=31, start_time=time(9), start_date=date(2026, 1, 1)
+        )
         self.assertEqual([d.day for d in occurrences(monthly, date(2026, 2, 1), date(2026, 4, 30))], [28, 31, 30])
 
     def test_generation_is_idempotent_and_notifies(self):
-        response = self.client_for(self.owner).post("/api/v1/schedules/", {
-            "property": str(self.property.id), "assigned_to": str(self.cleaner.id),
-            "checklist_template": str(self.templates[1].id), "title": "Airbnb Turnover",
-            "frequency": "daily", "start_time": "09:00", "start_date": str(timezone.localdate()),
-        }, format="json")
+        response = self.client_for(self.owner).post(
+            "/api/v1/schedules/",
+            {
+                "property": str(self.property.id),
+                "assigned_to": str(self.cleaner.id),
+                "checklist_template": str(self.templates[1].id),
+                "title": "Airbnb Turnover",
+                "frequency": "daily",
+                "start_time": "09:00",
+                "start_date": str(timezone.localdate()),
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 201, response.data)
         first = generate_recurring_jobs(days_ahead=6)
         second = generate_recurring_jobs(days_ahead=6)
@@ -226,10 +279,16 @@ class RecurringTests(APITestCase):
 
     def test_recurring_requires_paid_plan(self):
         Subscription.objects.all().delete()
-        response = self.client_for(self.owner).post("/api/v1/schedules/", {
-            "property": str(self.property.id), "frequency": "daily", "start_time": "09:00",
-            "start_date": str(timezone.localdate()),
-        }, format="json")
+        response = self.client_for(self.owner).post(
+            "/api/v1/schedules/",
+            {
+                "property": str(self.property.id),
+                "frequency": "daily",
+                "start_time": "09:00",
+                "start_date": str(timezone.localdate()),
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 402)
 
 
@@ -246,9 +305,11 @@ class NotificationTests(APITestCase):
     def test_device_registration_and_push_fallback(self):
         client = self.client_for(self.cleaner)
         self.assertEqual(client.post("/api/v1/devices/", {"token": "abc"}, format="json").status_code, 204)
-        with mock.patch("apps.notifications.services.send_push", return_value=True) as push:
-            with self.captureOnCommitCallbacks(execute=True):
-                self.create_job()
+        with (
+            mock.patch("apps.notifications.services.send_push", return_value=True) as push,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            self.create_job()
         push.assert_called_once()
         data = client.get("/api/v1/notifications/").data
         self.assertEqual(data["count"], 1)

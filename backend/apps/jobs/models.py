@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel, OrgScopedModel
+from apps.core.validators import validate_timezone
 
 
 class JobStatus(models.TextChoices):
@@ -84,9 +85,11 @@ class Job(OrgScopedModel):
 
     @builtins.property
     def missing_photo_ids(self) -> list[str]:
+        """Photos the device declared at finish that haven't arrived yet.
+        Uses ``photos.all()`` so a prefetch (sync pull, report build) is reused."""
         if not self.expected_photo_ids:
             return []
-        received = {str(pk) for pk in self.photos.values_list("id", flat=True)}
+        received = {str(photo.pk) for photo in self.photos.all()}
         return [pid for pid in self.expected_photo_ids if pid not in received]
 
 
@@ -161,9 +164,7 @@ class Issue(OrgScopedModel):
     description = models.TextField()
     severity = models.CharField(max_length=8, choices=IssueSeverity.choices, default=IssueSeverity.LOW)
     phase = models.CharField(max_length=20, choices=IssuePhase.choices, default=IssuePhase.BEFORE_CLEANING)
-    resolution = models.CharField(
-        max_length=12, choices=IssueResolution.choices, default=IssueResolution.UNCHANGED
-    )
+    resolution = models.CharField(max_length=12, choices=IssueResolution.choices, default=IssueResolution.UNCHANGED)
     reported_at = models.DateTimeField()
     reported_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
@@ -178,7 +179,9 @@ class Issue(OrgScopedModel):
 
 
 def photo_upload_to(instance, filename):
-    return f"orgs/{instance.organization_id}/jobs/{instance.job_id}/photos/{instance.id}.jpg"
+    # Extension comes from the *verified* image format (see services.ingest_photo).
+    ext = filename.rsplit(".", 1)[-1].lower()
+    return f"orgs/{instance.organization_id}/jobs/{instance.job_id}/photos/{instance.id}.{ext}"
 
 
 def thumb_upload_to(instance, filename):
@@ -237,13 +240,26 @@ class Signature(BaseModel):
 
 class ProcessedMutation(models.Model):
     """Idempotency log for the offline sync queue: a replayed mutation returns
-    its original result instead of being applied twice."""
+    its original result instead of being applied twice.
 
-    id = models.UUIDField(primary_key=True)
+    Keyed by (user, mutation_id): ids are client-generated, so one user's id
+    must never be able to collide with (or probe) another user's.
+    """
+
+    id = models.BigAutoField(primary_key=True)
+    mutation_id = models.UUIDField()
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
     type = models.CharField(max_length=32)
     result = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "mutation_id"], name="unique_mutation_per_user"),
+        ]
+
+    def __str__(self):
+        return f"{self.type} {self.mutation_id}"
 
 
 class Frequency(models.TextChoices):
@@ -271,7 +287,7 @@ class RecurringSchedule(OrgScopedModel):
     day_of_month = models.PositiveSmallIntegerField(null=True, blank=True)
     start_time = models.TimeField()
     duration_minutes = models.PositiveIntegerField(default=120)
-    timezone = models.CharField(max_length=64, default="UTC")
+    timezone = models.CharField(max_length=64, default="UTC", validators=[validate_timezone])
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)

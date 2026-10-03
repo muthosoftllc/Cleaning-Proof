@@ -9,22 +9,30 @@ from .base import APITestCase
 class AuthTests(APITestCase):
     def test_register_creates_owner_org_and_returns_tokens(self):
         client = APIClient()
-        response = client.post("/api/v1/auth/register/", {
-            "email": "New@Biz.test", "password": "Very-secure-123", "organization_name": "New Biz",
-        }, format="json")
+        response = client.post(
+            "/api/v1/auth/register/",
+            {
+                "email": "New@Biz.test",
+                "password": "Very-secure-123",
+                "organization_name": "New Biz",
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 201, response.data)
         self.assertIn("access", response.data)
         user = User.objects.get(email="new@biz.test")
         self.assertEqual(Membership.objects.get(user=user).role, Role.OWNER)
 
-        login = client.post("/api/v1/auth/login/", {"email": "NEW@biz.test", "password": "Very-secure-123"},
-                            format="json")
+        login = client.post(
+            "/api/v1/auth/login/", {"email": "NEW@biz.test", "password": "Very-secure-123"}, format="json"
+        )
         self.assertEqual(login.status_code, 200, login.data)
         self.assertIn("refresh", login.data)
 
     def test_weak_password_rejected(self):
-        response = APIClient().post("/api/v1/auth/register/", {"email": "a@b.test", "password": "password"},
-                                    format="json")
+        response = APIClient().post(
+            "/api/v1/auth/register/", {"email": "a@b.test", "password": "password"}, format="json"
+        )
         self.assertEqual(response.status_code, 400)
 
     def test_account_deletion_anonymizes_and_schedules_sole_owner_org(self):
@@ -55,17 +63,27 @@ class TenancyTests(APITestCase):
 
     def test_cannot_reference_foreign_property(self):
         client = self.client_for(self.rival, org=self.other_org)
-        response = client.post("/api/v1/jobs/", {
-            "property": str(self.property.id), "scheduled_start": "2030-01-01T09:00:00Z",
-        }, format="json")
+        response = client.post(
+            "/api/v1/jobs/",
+            {
+                "property": str(self.property.id),
+                "scheduled_start": "2030-01-01T09:00:00Z",
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 400)
         self.assertIn("property", response.data)
 
     def test_cannot_assign_job_to_non_member(self):
-        response = self.client_for(self.owner).post("/api/v1/jobs/", {
-            "property": str(self.property.id), "assigned_to": str(self.rival.id),
-            "scheduled_start": "2030-01-01T09:00:00Z",
-        }, format="json")
+        response = self.client_for(self.owner).post(
+            "/api/v1/jobs/",
+            {
+                "property": str(self.property.id),
+                "assigned_to": str(self.rival.id),
+                "scheduled_start": "2030-01-01T09:00:00Z",
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 400)
         self.assertIn("assigned_to", response.data)
 
@@ -100,8 +118,9 @@ class RoleTests(APITestCase):
 
     def test_last_owner_cannot_be_demoted(self):
         membership = Membership.objects.get(user=self.owner)
-        response = self.client_for(self.owner).patch(f"/api/v1/members/{membership.id}/", {"role": "admin"},
-                                                    format="json")
+        response = self.client_for(self.owner).patch(
+            f"/api/v1/members/{membership.id}/", {"role": "admin"}, format="json"
+        )
         self.assertEqual(response.status_code, 400)
 
 
@@ -109,10 +128,10 @@ class InvitationTests(APITestCase):
     def test_invite_and_accept(self):
         from apps.billing.models import Subscription
 
-        Subscription.objects.create(organization=self.org, plan="pro", product_id="cleaningproof_pro",
-                                    purchase_token="t1", status="active")
-        response = self.client_for(self.owner).post("/api/v1/invitations/", {"email": "Maria@x.test"},
-                                                    format="json")
+        Subscription.objects.create(
+            organization=self.org, plan="pro", product_id="cleaningproof_pro", purchase_token="t1", status="active"
+        )
+        response = self.client_for(self.owner).post("/api/v1/invitations/", {"email": "Maria@x.test"}, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         maria = self.make_user("maria@x.test")
         client = APIClient()
