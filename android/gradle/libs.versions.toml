@@ -20,7 +20,7 @@ securityCrypto = "1.1.0-alpha06"
 playLocation = "21.3.0"
 billing = "7.1.1"
 firebaseBom = "33.7.0"
-biometric = "1.2.0-alpha05"
+biometric = "1.4.0-alpha07"
 junit = "4.13.2"
 coroutines = "1.9.0"
 
