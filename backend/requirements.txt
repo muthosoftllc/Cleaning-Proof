@@ -8,7 +8,7 @@ psycopg[binary]==3.3.6
 redis==8.1.0                      # shared cache for rate limiting (REDIS_URL)
 Pillow==12.3.0
 reportlab==5.0.1
-google-auth==2.59.1
+google-auth==2.60.0
 requests==2.34.2
 gunicorn==26.2.0
 whitenoise==6.12.0
